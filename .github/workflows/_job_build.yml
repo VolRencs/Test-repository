@@ -1,0 +1,93 @@
+name: _job_build
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        required: true
+        type: string
+
+jobs:
+  proton:
+    name: Build ${{ inputs.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Cleanup disk space
+        uses: endersonmenezes/free-disk-space@v2
+        with:
+          remove_android: true
+          remove_dotnet: true
+          remove_haskell: true
+          remove_tool_cache: true
+          remove_codeql: true
+          remove_docker_images: true
+          remove_swap: true
+          remove_packages: |
+            azure-cli google-cloud-cli google-chrome-stable firefox microsoft-edge-stable
+            postgresql* mysql* php* temurin-* *llvm* clang* mono-devel powershell dotnet-sdk-*
+          remove_folders: |
+            /usr/share/swift /usr/share/miniconda /usr/local/lib/node_modules
+            /usr/local/share/chromium /usr/local/share/powershell /usr/local/julia*
+            /usr/local/aws-cli /usr/local/aws-sam-cli /usr/share/gradle /usr/share/az*
+            /usr/local/.ghcup
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y ccache fontforge-nox
+
+      - name: Restore ccache
+        id: ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.ccache
+          key: ccache-proton-v6-${{ runner.arch }}-${{ hashFiles('**/configure.sh', 'patches/**') }}
+          restore-keys: |
+            ccache-proton-v6-${{ runner.arch }}-
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          submodules: false
+
+      - name: Apply patches
+        run: |
+          git submodule update --init --filter=tree:0 --recursive
+          ./patches/protonprep-valve-staging.sh || true
+          patch -Np1 -i ./.github/patches/0001-build-strip-binaries-early.patch || true
+          mkdir -p build
+
+      - name: Configure
+        working-directory: ./build
+        run: |
+          ../configure.sh --build-name="${{ inputs.name }}" --container-engine=docker
+
+      - name: Build & package
+        working-directory: ./build
+        run: |
+          make -j$(nproc) redist
+          echo "Disk usage after build:"
+          df -h
+
+      - name: Save ccache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.ccache
+          key: ${{ steps.ccache.outputs.cache-primary-key }}
+
+      - name: Upload artifact ${{ inputs.name }}.tar.xz
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.name }}.tar.xz
+          path: ./build/${{ inputs.name }}.tar.xz
+
+      - name: Upload artifact ${{ inputs.name }}.sha512sum
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.name }}.sha512sum
+          path: ./build/${{ inputs.name }}.sha512sum

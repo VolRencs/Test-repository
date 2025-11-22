@@ -1,0 +1,37 @@
+name: Development
+on: workflow_dispatch
+
+concurrency:
+  group: ${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag_abbrev: ${{ steps.version.outputs.tag_abbrev }}
+      tag_offset: ${{ steps.version.outputs.tag_offset }}
+      sha_short: ${{ steps.version.outputs.sha_short }}
+      full_desc: ${{ steps.version.outputs.full_desc }}
+      branch: ${{ steps.version.outputs.branch }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Generate version info
+        id: version
+        run: |
+          echo "tag_abbrev=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
+          echo "tag_offset=$(git rev-list $(git describe --tags --abbrev=0)..HEAD --count)" >> $GITHUB_OUTPUT
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "full_desc=$(git describe --long --tags)" >> $GITHUB_OUTPUT
+          echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+
+  build:
+    needs: version
+    uses: ./.github/workflows/_job_build.yml
+    with:
+      name: ${{ needs.version.outputs.full_desc }}-${{ needs.version.outputs.branch }}
