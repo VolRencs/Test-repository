@@ -1,44 +1,33 @@
 name: _job_build
-
 on:
   workflow_call:
     inputs:
       name:
         required: true
         type: string
+      dry_run:
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   proton:
-    name: Build ${{ inputs.name }}
+    name: Build ${{ inputs.name }}${{ inputs.dry_run && ' (DRY RUN)' || '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
-
     steps:
-      - name: Cleanup disk space
-        uses: endersonmenezes/free-disk-space@v2
-        with:
-          remove_android: true
-          remove_dotnet: true
-          remove_haskell: true
-          remove_tool_cache: true
-          remove_codeql: true
-          remove_docker_images: true
-          remove_swap: true
-          remove_packages: |
-            azure-cli google-cloud-cli google-chrome-stable firefox microsoft-edge-stable
-            postgresql* mysql* php* temurin-* *llvm* clang* mono-devel powershell dotnet-sdk-*
-          remove_folders: |
-            /usr/share/swift /usr/share/miniconda /usr/local/lib/node_modules
-            /usr/local/share/chromium /usr/local/share/powershell /usr/local/julia*
-            /usr/local/aws-cli /usr/local/aws-sam-cli /usr/share/gradle /usr/share/az*
-            /usr/local/.ghcup
-
-      - name: Install dependencies
+      - name: Dry-run mode – create fake artifacts and skip build
+        if: ${{ inputs.dry_run }}
         run: |
-          sudo apt update
-          sudo apt install -y ccache fontforge-nox
+          mkdir -p build
+          echo "This is a dry-run build of ${{ inputs.name }}" > build/${{ inputs.name }}.tar.xz
+          echo "dry-run fake file for testing release upload" >> build/${{ inputs.name }}.tar.xz
+          sha512sum build/${{ inputs.name }}.tar.xz > build/${{ inputs.name }}.sha512sum
+          echo "Dry-run artifacts created – build skipped"
+          exit 0
 
       - name: Restore ccache
+        if: ${{ !inputs.dry_run }}
         id: ccache
         uses: actions/cache/restore@v4
         with:
@@ -55,6 +44,7 @@ jobs:
           submodules: false
 
       - name: Apply patches
+        if: ${{ !inputs.dry_run }}
         run: |
           git submodule update --init --filter=tree:0 --recursive
           ./patches/protonprep-valve-staging.sh || true
@@ -62,11 +52,13 @@ jobs:
           mkdir -p build
 
       - name: Configure
+        if: ${{ !inputs.dry_run }}
         working-directory: ./build
         run: |
           ../configure.sh --build-name="${{ inputs.name }}" --container-engine=docker
 
       - name: Build & package
+        if: ${{ !inputs.dry_run }}
         working-directory: ./build
         run: |
           make -j$(nproc) redist
@@ -74,7 +66,7 @@ jobs:
           df -h
 
       - name: Save ccache
-        if: always()
+        if: ${{ !inputs.dry_run && always() }}
         uses: actions/cache/save@v4
         with:
           path: ~/.ccache
