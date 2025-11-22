@@ -14,17 +14,21 @@ jobs:
   proton:
     name: Build ${{ inputs.name }}${{ inputs.dry_run && ' (DRY RUN)' || '' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 10
+
     steps:
-      - name: Dry-run mode – create fake artifacts and skip build
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: "[DRY RUN] Create fake artifacts"
         if: ${{ inputs.dry_run }}
         run: |
           mkdir -p build
-          echo "This is a dry-run build of ${{ inputs.name }}" > build/${{ inputs.name }}.tar.xz
-          echo "dry-run fake file for testing release upload" >> build/${{ inputs.name }}.tar.xz
+          echo "DRY-RUN TEST BUILD - ${{ inputs.name }}" > build/${{ inputs.name }}.tar.xz
+          echo "This file proves that artifact upload works" >> build/${{ inputs.name }}.tar.xz
           sha512sum build/${{ inputs.name }}.tar.xz > build/${{ inputs.name }}.sha512sum
-          echo "Dry-run artifacts created – build skipped"
-          exit 0
+          echo "Fake artifacts created successfully!"
+
 
       - name: Restore ccache
         if: ${{ !inputs.dry_run }}
@@ -36,28 +40,6 @@ jobs:
           restore-keys: |
             ccache-proton-v6-${{ runner.arch }}-
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          fetch-tags: true
-          submodules: false
-
-      - name: Apply patches
-        if: ${{ !inputs.dry_run }}
-        run: |
-          git submodule update --init --filter=tree:0 --recursive
-          ./patches/protonprep-valve-staging.sh || true
-          patch -Np1 -i ./.github/patches/0001-build-strip-binaries-early.patch || true
-          mkdir -p build
-
-      - name: Build & package
-        if: ${{ !inputs.dry_run }}
-        working-directory: ./build
-        run: |
-          make -j$(nproc) redist
-          echo "Disk usage after build:"
-          df -h
 
       - name: Save ccache
         if: ${{ !inputs.dry_run && always() }}
@@ -67,13 +49,13 @@ jobs:
           key: ${{ steps.ccache.outputs.cache-primary-key }}
 
       - name: Upload artifact ${{ inputs.name }}.tar.xz
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ inputs.name }}.tar.xz
           path: ./build/${{ inputs.name }}.tar.xz
 
       - name: Upload artifact ${{ inputs.name }}.sha512sum
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ inputs.name }}.sha512sum
           path: ./build/${{ inputs.name }}.sha512sum
