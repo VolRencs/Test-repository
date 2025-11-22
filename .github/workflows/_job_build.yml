@@ -29,17 +29,14 @@ jobs:
           sha512sum build/${{ inputs.name }}.tar.xz > build/${{ inputs.name }}.sha512sum
           echo "Fake artifacts created successfully!"
 
-
-      - name: Restore ccache
-        if: ${{ !inputs.dry_run }}
-        id: ccache
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.ccache
-          key: ccache-proton-v6-${{ runner.arch }}-${{ hashFiles('**/configure.sh', 'patches/**') }}
-          restore-keys: |
-            ccache-proton-v6-${{ runner.arch }}-
-
+      - name: Create fake artifacts (dry-run or fallback)
+        run: |
+          mkdir -p build
+          echo "TEST BUILD ${{ inputs.name }}"              > build/${{ inputs.name }}.tar.xz
+          echo "Created at $(date)"                          >> build/${{ inputs.name }}.tar.xz
+          echo "GitHub Run: ${{ github.run_id }}"            >> build/${{ inputs.name }}.tar.xz
+          sha512sum build/${{ inputs.name }}.tar.xz         > build/${{ inputs.name }}.sha512sum
+          echo "Fake artifacts successfully created in build/"
 
       - name: Save ccache
         if: ${{ !inputs.dry_run && always() }}
