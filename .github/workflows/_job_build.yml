@@ -38,7 +38,7 @@ jobs:
           sha512sum build/${{ inputs.name }}.tar.xz         > build/${{ inputs.name }}.sha512sum
           echo "Fake artifacts successfully created in build/"
 
-    - name: Ensure .git exists (required for gh cli)
+      - name: Ensure .git exists (required for gh cli)
         run: |
           if [ ! -d ".git" ]; then
             echo "No .git found → initializing minimal git repo for 'gh' tool"
