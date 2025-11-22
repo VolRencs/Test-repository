@@ -51,12 +51,6 @@ jobs:
           patch -Np1 -i ./.github/patches/0001-build-strip-binaries-early.patch || true
           mkdir -p build
 
-      - name: Configure
-        if: ${{ !inputs.dry_run }}
-        working-directory: ./build
-        run: |
-          ../configure.sh --build-name="${{ inputs.name }}" --container-engine=docker
-
       - name: Build & package
         if: ${{ !inputs.dry_run }}
         working-directory: ./build
