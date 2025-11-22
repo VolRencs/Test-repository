@@ -38,18 +38,6 @@ jobs:
           sha512sum build/${{ inputs.name }}.tar.xz         > build/${{ inputs.name }}.sha512sum
           echo "Fake artifacts successfully created in build/"
 
-      - name: Ensure .git exists (required for gh cli)
-        run: |
-          if [ ! -d ".git" ]; then
-            echo "No .git found → initializing minimal git repo for 'gh' tool"
-            git init -b main
-            git config user.name "github-actions"
-            git config user.email "github-actions@github.com"
-            echo "dummy file for gh cli" > README.md
-            git add README.md
-            git commit -m "init"
-          fi
-
       - name: Save ccache
         if: ${{ !inputs.dry_run && always() }}
         uses: actions/cache/save@v4

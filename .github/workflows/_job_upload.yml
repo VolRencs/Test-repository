@@ -26,6 +26,9 @@ jobs:
         with:
           name: ${{ matrix.file }}
 
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
       - name: Upload ${{ matrix.file }} to GitHub Release
         run: |
           gh release upload "${{ inputs.version }}" "${{ matrix.file }}" --clobber
